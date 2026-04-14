@@ -10,5 +10,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "awaken-admin/src/lib/auth.ts", "awaken-admin/src/lib/api.ts"]
+  "include": ["src/**/*.ts", "awaken-admin/src/lib/auth.ts", "awaken-admin/src/lib/api.ts", "awaken-client/src/main.ts"]
 }

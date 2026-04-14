@@ -23,6 +23,7 @@ enum DeviceStatus {
   ONLINE
   OFFLINE
   LOCKED
+  IN_USE
   MAINTENANCE
 }
 
@@ -33,150 +34,200 @@ enum PinScope {
 }
 
 model Site {
-  id               String         @id @default(cuid())
-  name             String
-  slug             String         @unique
-  siteCode         String         @unique
-  defaultMode      SiteMode       @default(STANDARD)
-  isActive         Boolean        @default(true)
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  siteCode    String   @unique
+  defaultMode SiteMode @default(STANDARD)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-
-  members          SiteMember[]
-  devices          Device[]
-  pins             Pin[]
-  sessions         Session[]
-  bookings         Booking[]
-  auditLogs        AuditLog[]
+  members       SiteMember[]
+  devices       Device[]
+  pins          Pin[]
+  sessions      Session[]
+  bookings      Booking[]
+  auditLogs     AuditLog[]
+  announcements Announcement[]
 }
 
 model User {
-  id               String         @id @default(cuid())
-  email            String         @unique
-  fullName         String?
-  passwordHash     String?
-  isActive         Boolean        @default(true)
+  id           String   @id @default(cuid())
+  email        String   @unique
+  fullName     String?
+  passwordHash String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-
-  memberships      SiteMember[]
-  pins             Pin[]
-  sessions         Session[]
-  bookings         Booking[]
-  auditLogs        AuditLog[]     @relation("ActorLogs")
+  memberships SiteMember[]
+  pins        Pin[]
+  sessions    Session[]
+  bookings    Booking[]
+  auditLogs   AuditLog[]   @relation("ActorLogs")
 }
 
 model SiteMember {
-  id               String         @id @default(cuid())
-  siteId           String
-  userId           String
-  role             SiteMemberRole @default(VIEWER)
-  invitedEmail     String?
-  invitationToken  String?
-  acceptedAt       DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id              String         @id @default(cuid())
+  siteId          String
+  userId          String
+  role            SiteMemberRole @default(VIEWER)
+  invitedEmail    String?
+  invitationToken String?
+  acceptedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
-  site             Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([siteId, userId])
+  @@index([siteId, role])
+  @@index([invitedEmail])
+  @@index([invitationToken])
 }
 
 model Device {
-  id               String         @id @default(cuid())
-  siteId           String
-  name             String
-  hostname         String
-  enrollmentCode   String         @unique
-  mode             SiteMode       @default(STANDARD)
-  status           DeviceStatus   @default(OFFLINE)
-  isRegistered     Boolean        @default(false)
-  lastSeenAt       DateTime?
-  clientVersion    String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id             String       @id @default(cuid())
+  siteId         String
+  name           String
+  hostname       String
+  enrollmentCode String       @unique
+  mode           SiteMode     @default(STANDARD)
+  status         DeviceStatus @default(OFFLINE)
+  isRegistered   Boolean      @default(false)
+  lastSeenAt     DateTime?
+  clientVersion  String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  site             Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  sessions         Session[]
-  auditLogs        AuditLog[]
+  site                   Site                   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  sessions               Session[]
+  pins                   Pin[]
+  bookings               Booking[]
+  auditLogs              AuditLog[]
+  announcementDeliveries AnnouncementDelivery[]
 
   @@unique([siteId, hostname])
 }
 
 model Pin {
-  id               String         @id @default(cuid())
-  siteId           String
-  userId           String?
-  deviceId         String?
-  bookingId        String?
-  scope            PinScope
-  pinHash          String
-  expiresAt        DateTime?
-  isActive         Boolean        @default(true)
-  version          Int            @default(1)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id        String    @id @default(cuid())
+  siteId    String
+  userId    String?
+  deviceId  String?
+  bookingId String?
+  scope     PinScope
+  pinHash   String
+  expiresAt DateTime?
+  isActive  Boolean   @default(true)
+  version   Int       @default(1)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  site             Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  user             User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  site    Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  device  Device?  @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
   @@index([siteId, isActive])
+  @@index([deviceId, isActive])
+  @@index([bookingId])
 }
 
 model Booking {
-  id               String         @id @default(cuid())
-  siteId           String
-  userId           String?
-  source           String         @default("DIRECT") // DIRECT | SKEDDA
-  externalRef      String?
-  email            String
-  name             String?
-  status           String         @default("PENDING") // PENDING | CONFIRMED | CANCELLED
-  pinSentAt        DateTime?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id          String    @id @default(cuid())
+  siteId      String
+  userId      String?
+  deviceId    String?
+  source      String    @default("DIRECT")
+  externalRef String?
+  email       String
+  name        String?
+  status      String    @default("PENDING")
+  pinSentAt   DateTime?
+  validFrom   DateTime?
+  validTo     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  site             Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  user             User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  site   Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  pins   Pin[]
 
   @@index([siteId, email])
+  @@index([deviceId])
 }
 
 model Session {
-  id               String         @id @default(cuid())
-  siteId           String
-  deviceId         String?
-  userId           String?
-  pinId            String?
-  startedAt        DateTime       @default(now())
-  endedAt          DateTime?
-  status           String         @default("ACTIVE") // ACTIVE | ENDED | LOCKED
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id        String    @id @default(cuid())
+  siteId    String
+  deviceId  String?
+  userId    String?
+  pinId     String?
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  status    String    @default("ACTIVE")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  site             Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  device           Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  user             User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  site   Site    @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([siteId, status])
 }
 
 model AuditLog {
-  id               String         @id @default(cuid())
-  siteId           String?
-  deviceId         String?
-  actorId          String?
-  action           String
-  details          Json?
-  ipAddress        String?
-  createdAt        DateTime       @default(now())
+  id        String   @id @default(cuid())
+  siteId    String?
+  deviceId  String?
+  actorId   String?
+  action    String
+  details   Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
 
-  site             Site?          @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  device           Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
-  actor            User?          @relation("ActorLogs", fields: [actorId], references: [id], onDelete: SetNull)
+  site   Site?   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  device Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  actor  User?   @relation("ActorLogs", fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([siteId, action])
+}
+
+model Announcement {
+  id         String    @id @default(cuid())
+  siteId     String
+  title      String
+  message    String
+  level      String    @default("INFO")
+  targetType String    @default("SITE")
+  targetId   String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  expiresAt  DateTime?
+  isActive   Boolean   @default(true)
+
+  site       Site                   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  deliveries AnnouncementDelivery[]
+
+  @@index([siteId, isActive])
+  @@index([targetType, targetId])
+}
+
+model AnnouncementDelivery {
+  id             String    @id @default(cuid())
+  announcementId String
+  deviceId       String
+  deliveredAt    DateTime?
+  acknowledgedAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  device       Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, deviceId])
+  @@index([deviceId, acknowledgedAt])
 }

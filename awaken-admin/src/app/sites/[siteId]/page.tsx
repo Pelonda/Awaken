@@ -23,6 +23,30 @@ function SiteOverviewContent() {
 
   return (
     <>
+      {/* 🔥 QUICK ACTIONS (FIXED POSITION) */}
+      <div className="card stack">
+        <h2 style={{ margin: 0 }}>Quick Actions</h2>
+
+        <div className="row" style={{ flexWrap: "wrap", gap: 10 }}>
+          <a href={`/sites/${site.id}/devices`} className="button">
+            Manage Devices
+          </a>
+
+          <a href={`/sites/${site.id}/sessions`} className="button secondary">
+            View Sessions
+          </a>
+
+          <a href={`/sites/${site.id}/bookings`} className="button secondary">
+            Manage Bookings
+          </a>
+
+          <a href={`/sites/${site.id}/announcements`} className="button secondary">
+            Send Announcement
+          </a>
+        </div>
+      </div>
+
+      {/* SITE INFO */}
       <div className="card stack">
         <div className="row-between">
           <div>
@@ -42,6 +66,7 @@ function SiteOverviewContent() {
         </div>
       </div>
 
+      {/* STATS */}
       <div className="grid grid-3">
         <div className="card">
           <div className="small">Devices</div>
@@ -79,7 +104,11 @@ export default function SiteOverviewPage() {
   }, [router]);
 
   return (
-    <AppShell siteId={siteId} title="Site Overview" subtitle="Manage your AWAKEN site">
+    <AppShell
+      siteId={siteId}
+      title="Site Overview"
+      subtitle="Manage your AWAKEN site"
+    >
       <SiteOverviewContent />
     </AppShell>
   );

@@ -9,34 +9,15 @@ export default function HomePage() {
 
   useEffect(() => {
     const token = getAccessToken();
-    if (token) {
+
+    if (!token) {
       router.replace("/login");
-    } else {
-      router.replace("/login");
+      return;
     }
+
+    //  redirect to your site
+    router.replace("/sites/cmnxjweow0000lu6k3cyobgkf");
   }, [router]);
 
   return null;
 }
-
-<div className="card stack">
-  <h2 style={{ margin: 0 }}>Quick Actions</h2>
-
-  <div className="row">
-    <a href={`/sites/${site.id}/devices`} className="button">
-      Manage Devices
-    </a>
-
-    <a href={`/sites/${site.id}/sessions`} className="button secondary">
-      View Sessions
-    </a>
-
-    <a href={`/sites/${site.id}/bookings`} className="button secondary">
-      Manage Bookings
-    </a>
-
-    <a href={`/sites/${site.id}/announcements`} className="button secondary">
-      Send Announcement
-    </a>
-  </div>
-</div>

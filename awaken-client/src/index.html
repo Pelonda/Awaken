@@ -3,6 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <title>AWAKEN</title>
+
+  <!-- FINAL WORKING CSP -->
+  <meta http-equiv="Content-Security-Policy"
+    content="
+      default-src * 'unsafe-inline' 'unsafe-eval' data:;
+      connect-src * http://localhost:4000 ws://localhost:4000;
+      script-src * 'unsafe-inline' 'unsafe-eval';
+      style-src * 'unsafe-inline';
+    ">
+</head>
+
   <style>
     body {
       margin: 0;
@@ -20,6 +31,7 @@
       padding: 30px;
       border-radius: 12px;
       text-align: center;
+      width: 300px;
     }
 
     input {
@@ -34,72 +46,104 @@
       margin-top: 15px;
       padding: 10px 20px;
       font-size: 16px;
+      cursor: pointer;
     }
 
     .error {
       color: #f87171;
       margin-top: 10px;
     }
+
+    .loading {
+      color: #93c5fd;
+      margin-top: 10px;
+    }
   </style>
-</head>
 
 <body>
   <div class="card">
     <h2>AWAKEN LOCK</h2>
     <p>Enter your PIN</p>
 
-    <input id="pin" maxlength="8" />
+    <input id="pin" maxlength="8" autofocus />
     <br />
     <button onclick="unlock()">Unlock</button>
 
-    <div id="error" class="error"></div>
+    <div id="status"></div>
   </div>
 
-  <script>
-    async function unlock() {
-      const pin = document.getElementById("pin").value;
-      const error = document.getElementById("error");
+<script>
+const SITE_CODE = "SITE-A1U84O";
+const DEVICE_ID = "cmnxjzu2w0002lu6kuoavlzz4";
 
-      error.innerText = "";
+const pinInput = document.getElementById("pin");
+const status = document.getElementById("status");
 
-      try {
-        const res = await fetch("http://localhost:4000/api/pins/verify", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            siteCode: "SITE-A1U84O",
-            pin,
-            deviceId: "YOUR_DEVICE_ID"
-          })
-        });
+// 🔥 ENTER KEY SUPPORT
+pinInput.addEventListener("keydown", function (e) {
+  if (e.key === "Enter") {
+    unlock();
+  }
+});
 
-        const data = await res.json();
+async function unlock() {
+  const pin = pinInput.value;
 
-        if (!data.ok) {
-          throw new Error("Invalid PIN");
-        }
+  status.innerHTML = "<div class='loading'>Checking...</div>";
 
-        // start session
-        await fetch("http://localhost:4000/api/sessions/start", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            siteCode: "SITE-A1U84O",
-            pin,
-            deviceId: "YOUR_DEVICE_ID"
-          })
-        });
+  try {
+    // STEP 1: VERIFY PIN
+    const verifyRes = await fetch("http://localhost:4000/api/pins/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        siteCode: SITE_CODE,
+        pin,
+        deviceId: DEVICE_ID
+      })
+    });
 
-        document.body.innerHTML = "<h1>Unlocked</h1>";
+    const verifyData = await verifyRes.json();
 
-      } catch (err) {
-        error.innerText = "Invalid PIN";
-      }
+    if (!verifyData.ok) {
+      throw new Error("Invalid PIN");
     }
-  </script>
+
+    // STEP 2: START SESSION
+    const sessionRes = await fetch("http://localhost:4000/api/sessions/start", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        siteCode: SITE_CODE,
+        pin,
+        deviceId: DEVICE_ID
+      })
+    });
+
+    const sessionData = await sessionRes.json();
+
+    if (!sessionData.ok) {
+      throw new Error("Session failed");
+    }
+
+    // SUCCESS UI
+    document.body.innerHTML = `
+      <div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#111827;color:white;">
+        <h1>Unlocked</h1>
+      </div>
+    `;
+
+  } catch (err) {
+    console.error(err);
+    status.innerHTML = "<div class='error'>Invalid PIN or session error</div>";
+    pinInput.value = "";
+  }
+}
+</script>
+
 </body>
 </html>

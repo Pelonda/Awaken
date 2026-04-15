@@ -1,66 +1,23 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>AWAKEN</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial;
-      background: #111827;
-      color: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-    }
+<body style="margin:0;background:#111827;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:Arial">
 
-    .card {
-      background: #1f2937;
-      padding: 30px;
-      border-radius: 12px;
-      text-align: center;
-      width: 300px;
-    }
-
-    input {
-      padding: 12px;
-      font-size: 20px;
-      width: 200px;
-      text-align: center;
-      margin-top: 10px;
-    }
-
-    button {
-      margin-top: 15px;
-      padding: 10px 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-
-    .error {
-      color: #f87171;
-      margin-top: 10px;
-    }
-
-    .loading {
-      color: #93c5fd;
-      margin-top: 10px;
-    }
-  </style>
-
-<body>
-  <div class="card">
+  <div style="background:#1f2937;padding:30px;border-radius:12px;text-align:center">
     <h2>AWAKEN LOCK</h2>
     <p>Enter your PIN</p>
 
-    <input id="pin" maxlength="8" autofocus />
-    <br />
-    <button onclick="unlock()">Unlock</button>
+    <input id="pin" maxlength="8" style="padding:12px;font-size:20px;text-align:center">
+    <br><br>
 
-    <div id="status"></div>
+    <button onclick="unlock()" style="padding:10px 20px">Unlock</button>
+
+    <div id="status" style="margin-top:10px;color:#f87171"></div>
   </div>
 
 <script>
@@ -70,20 +27,103 @@ const DEVICE_ID = "cmnxjzu2w0002lu6kuoavlzz4";
 const pinInput = document.getElementById("pin");
 const status = document.getElementById("status");
 
-// 🔥 ENTER KEY SUPPORT
-pinInput.addEventListener("keydown", function (e) {
-  if (e.key === "Enter") {
-    unlock();
+let sessionTimer = null;
+let idleTimer = null;
+
+// 🔥 CONFIG
+const IDLE_LIMIT_MS = 2 * 60 * 1000; // 2 minutes (change later)
+
+// ENTER key
+pinInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") unlock();
+});
+
+// 🔥 SOCKET
+const socket = io("http://localhost:4000");
+
+socket.emit("join-site", "cmnxjweow0000lu6k3cyobgkf");
+
+socket.on("session:update", (event) => {
+  if (event.type === "ENDED") {
+    lockScreen();
   }
 });
 
+// 🔥 FORMAT TIME
+function formatTime(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = String(Math.floor(totalSeconds / 3600)).padStart(2, "0");
+  const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, "0");
+  const s = String(totalSeconds % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
+}
+
+// 🔥 UNLOCK UI
+function unlockScreen(expiresAt) {
+  document.body.innerHTML = `
+    <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;background:#111827;color:white;">
+      <h1>Session Active</h1>
+      <h2 id="timer" style="margin-top:20px;color:#93c5fd;"></h2>
+      <p style="margin-top:10px;color:#fca5a5;">Idle timeout enabled</p>
+    </div>
+  `;
+
+  startSessionTimer(expiresAt);
+  startIdleTracking();
+}
+
+// 🔥 SESSION TIMER
+function startSessionTimer(expiresAt) {
+  const timerEl = document.getElementById("timer");
+
+  function update() {
+    const remaining = new Date(expiresAt) - new Date();
+
+    if (remaining <= 0) {
+      lockScreen();
+      return;
+    }
+
+    timerEl.innerText = "Time left: " + formatTime(remaining);
+  }
+
+  update();
+  sessionTimer = setInterval(update, 1000);
+}
+
+// 🔥 IDLE TRACKING
+function startIdleTracking() {
+  function resetIdleTimer() {
+    if (idleTimer) clearTimeout(idleTimer);
+
+    idleTimer = setTimeout(() => {
+      console.log("User idle → locking");
+      lockScreen();
+    }, IDLE_LIMIT_MS);
+  }
+
+  // track activity
+  window.addEventListener("mousemove", resetIdleTimer);
+  window.addEventListener("keydown", resetIdleTimer);
+  window.addEventListener("click", resetIdleTimer);
+
+  resetIdleTimer();
+}
+
+// 🔥 LOCK
+function lockScreen() {
+  if (sessionTimer) clearInterval(sessionTimer);
+  if (idleTimer) clearTimeout(idleTimer);
+
+  location.reload();
+}
+
+// 🔥 MAIN FLOW
 async function unlock() {
   const pin = pinInput.value;
-
-  status.innerHTML = "<div class='loading'>Checking...</div>";
+  status.innerText = "Checking...";
 
   try {
-    // STEP 1: VERIFY PIN
     const verifyRes = await fetch("http://localhost:4000/api/pins/verify", {
       method: "POST",
       headers: {
@@ -98,11 +138,8 @@ async function unlock() {
 
     const verifyData = await verifyRes.json();
 
-    if (!verifyData.ok) {
-      throw new Error("Invalid PIN");
-    }
+    if (!verifyData.ok) throw new Error("Invalid PIN");
 
-    // STEP 2: START SESSION
     const sessionRes = await fetch("http://localhost:4000/api/sessions/start", {
       method: "POST",
       headers: {
@@ -117,20 +154,13 @@ async function unlock() {
 
     const sessionData = await sessionRes.json();
 
-    if (!sessionData.ok) {
-      throw new Error("Session failed");
-    }
+    if (!sessionData.ok) throw new Error("Session failed");
 
-    // SUCCESS UI
-    document.body.innerHTML = `
-      <div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#111827;color:white;">
-        <h1>Unlocked</h1>
-      </div>
-    `;
+    unlockScreen(verifyData.expiresAt);
 
   } catch (err) {
     console.error(err);
-    status.innerHTML = "<div class='error'>Invalid PIN or session error</div>";
+    status.innerText = "Invalid PIN or error";
     pinInput.value = "";
   }
 }
